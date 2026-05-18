@@ -58,6 +58,20 @@ def get_wr_skey():
 def fix_no_synckey():
     requests.post(FIX_SYNCKEY_URL, headers=headers, cookies=cookies,data=json.dumps({"bookIds":["3300060341"]}, separators=(',', ':')))
 
+BOOK_INFO_URL = "https://weread.qq.com/web/book/info"
+_book_title_cache = {}
+
+def get_book_title(book_id):
+    if book_id in _book_title_cache:
+        return _book_title_cache[book_id]
+    try:
+        resp = requests.get(BOOK_INFO_URL, headers=headers, cookies=cookies, params={"bookId": book_id}, timeout=10)
+        title = resp.json().get("title", book_id)
+    except Exception:
+        title = book_id
+    _book_title_cache[book_id] = title
+    return title
+
 refresh_print = setup_logging()
 
 def refresh_cookie():
@@ -90,7 +104,9 @@ while index <= READ_NUM:
     data['sg'] = hashlib.sha256(f"{data['ts']}{data['rn']}{KEY}".encode()).hexdigest()
     data['s'] = cal_hash(encode_data(data))
 
+    book_title = get_book_title(data['b'])
     refresh_print(f"阅读进度: 第 {index}/{READ_NUM} 次，已完成 {(index - 1) * 0.5:.1f} 分钟")
+    logging.info(f"正在阅读：《{book_title}》章节 {data['c']}")
     logging.debug("data: %s", data)
     response = requests.post(READ_URL, headers=headers, cookies=cookies, data=json.dumps(data, separators=(',', ':')))
     resData = response.json()

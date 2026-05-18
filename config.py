@@ -1,6 +1,7 @@
 # config.py 自定义配置,包括阅读次数、推送token的填写
 import os
 import re
+import json
 
 """
 可修改区域
@@ -82,7 +83,7 @@ data = {
 
 
 def convert(curl_command):
-    """提取bash接口中的headers与cookies
+    """提取bash接口中的headers、cookies，以及请求体中的书籍/章节信息
     支持 -H 'Cookie: xxx' 和 -b 'xxx' 两种方式的cookie提取
     """
     # 提取 headers
@@ -92,25 +93,37 @@ def convert(curl_command):
 
     # 提取 cookies
     cookies = {}
-    
+
     # 从 -H 'Cookie: xxx' 提取
-    cookie_header = next((v for k, v in headers_temp.items() 
+    cookie_header = next((v for k, v in headers_temp.items()
                          if k.lower() == 'cookie'), '')
-    
+
     # 从 -b 'xxx' 提取
     cookie_b = re.search(r"-b '([^']+)'", curl_command)
     cookie_string = cookie_b.group(1) if cookie_b else cookie_header
-    
+
     # 解析 cookie 字符串
     if cookie_string:
         for cookie in cookie_string.split('; '):
             if '=' in cookie:
                 key, value = cookie.split('=', 1)
                 cookies[key.strip()] = value.strip()
-    
+
     # 移除 headers 中的 Cookie/cookie
-    headers = {k: v for k, v in headers_temp.items() 
+    headers = {k: v for k, v in headers_temp.items()
               if k.lower() != 'cookie'}
+
+    # 提取 --data-raw 中的书籍ID和章节ID，覆盖默认随机列表
+    data_raw_match = re.search(r"--data-raw '([^']+)'", curl_command)
+    if data_raw_match:
+        try:
+            body = json.loads(data_raw_match.group(1))
+            if 'b' in body:
+                book[:] = [body['b']]
+            if 'c' in body:
+                chapter[:] = [body['c']]
+        except (json.JSONDecodeError, ValueError):
+            pass
 
     return headers, cookies
 
